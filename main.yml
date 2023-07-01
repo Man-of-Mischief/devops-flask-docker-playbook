@@ -1,0 +1,134 @@
+---
+- name: "Build Docker Image"
+  hosts: build
+  become: yes
+  vars:
+    packages:
+      - docker
+      - git
+      - python3-pip
+    repo_url: "https://github.com/Man-of-Mischief/devops-flask"
+    clone_dir: "/var/flaskapp/"
+    image_name: "nidhinb143/flaskapp-v1"
+  vars_files:
+    - docker.vars
+  tasks:
+ 
+    - name: "Installing Packages"
+      yum:
+        name: "{{ packages }}"
+        state: present
+ 
+    - name: "Installing python docker extension"
+      become: false
+      pip:
+        name: docker
+        state: present
+ 
+    - name: "Adding ec2-user to docker group"
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+ 
+ 
+    - name: "Enabling/ Restarting Docker Service"
+      service:
+        name: docker
+        state: restarted
+        enabled: true
+ 
+    - name: "Clone git repo to build"
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ clone_dir }}"
+      register: clone_status
+ 
+    - name: "Login to DockerHub"
+      when: clone_status.changed == true
+      docker_login:
+        username: "{{ docker_user }}"
+        password: "{{ docker_pass }}"
+      register: login_status
+ 
+    - name: "Build Docker Image and push to DockerHub"
+      when: login_status.changed == true and clone_status.changed == true
+      community.docker.docker_image:
+        source: build
+        build:
+          path: "{{ clone_dir }}"
+          pull: yes
+        name: "{{ image_name }}"
+        tag: "{{ item }}"
+        push: true
+        force_tag: yes
+        force_source: yes
+      with_items:
+        - "{{ clone_status.after }}"
+        - latest
+      register: build_status
+ 
+    - name: "Removing local image from build server"
+      when: build_status.changed == true
+      community.docker.docker_image:
+        state: absent
+        name: "{{ image_name }}"
+        tag: "{{ item }}"
+      with_items:
+        - "{{ clone_status.after }}"
+        - latest
+ 
+    - name: "Logout from Docker"
+      when: clone_status.changed == true
+      docker_login:
+        username: "{{ docker_user }}"
+        password: "{{ docker_pass }}"
+        state: absent
+ 
+- name: "Running Image on test server"
+  hosts: test
+  become: yes
+  vars:
+    packages:
+      - docker
+      - python3-pip
+    image_name: "nidhinb143/flaskapp-v1"
+  tasks:
+ 
+    - name: "Installing Packages"
+      yum:
+        name: "{{ packages }}"
+        state: present
+ 
+    - name: "Installing python docker extension"
+      become: false
+      pip:
+        name: docker
+ 
+    - name: "Adding ec2-user to docker group"
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+ 
+    - name: "Enabling/ Restarting Docker Service"
+      service:
+        name: docker
+        state: restarted
+        enabled: true
+ 
+    - name: "Pulling Docker Image"
+      docker_image:
+        name: "{{ image_name }}"
+        source: pull
+        force_source: true
+      register: image_status
+ 
+    - name: "Run Container"
+      when: image_status.changed == true
+      community.docker.docker_container:
+        name: flaskapp
+        image: "{{ image_name }}:latest"
+        recreate: yes
+        published_ports:
+          -"80:8000"
