@@ -10,6 +10,9 @@ Before running this playbook, ensure that the following prerequisites are met on
 - Docker: Install Docker on both servers, and ensure that Docker daemon is running.
 - Git: Ensure Git is installed on the build server to clone the Flask web application code from the specified GitHub repository.
 
+## Email Notification on Image Build Success
+This Ansible playbook now includes an enhanced feature that sends email notifications whenever a Docker image build is successful on the build server. The email notification provides important details about the Docker image, making it easier to track successful builds and stay informed about the latest changes.
+
 ## Configuration
 
 1. Clone this repository to your local machine:
