@@ -1,8 +1,9 @@
 ---
 - name: "Build Docker Image"
-  hosts: build
+  hosts: amazon
   become: yes
   vars:
+    mail_recipient: "ni6hin@gmail.com"
     packages:
       - docker
       - git
@@ -11,7 +12,7 @@
     clone_dir: "/var/flaskapp/"
     image_name: "nidhinb143/flaskapp-v1"
   vars_files:
-    - docker.vars
+    - ./creds.yml
   tasks:
  
     - name: "Installing Packages"
@@ -78,15 +79,33 @@
         - "{{ clone_status.after }}"
         - latest
  
+    - name: "Mail Notification - Image Build Successful"
+      when: build_status.changed == true
+      mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        username: "{{ smtp_username }}"
+        password: "{{ smtp_password }}"
+        to: "{{ mail_recipient }}"
+        subject: "Docker Image Build Successful"
+        body: |
+          The Docker image build was successful for {{ image_name }}:latest.
+
+          Image details:
+            - Image Name: {{ image_name }}
+            - Image Build Time: {{ ansible_date_time.iso8601 }}
+            - Git Commit: {{ clone_status.after }}
+
     - name: "Logout from Docker"
       when: clone_status.changed == true
       docker_login:
         username: "{{ docker_user }}"
         password: "{{ docker_pass }}"
         state: absent
- 
+
+
 - name: "Running Image on test server"
-  hosts: test
+  hosts: amazon
   become: yes
   vars:
     packages:
