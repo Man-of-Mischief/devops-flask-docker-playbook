@@ -12,7 +12,7 @@
     clone_dir: "/var/flaskapp/"
     image_name: "nidhinb143/flaskapp-v1"
   vars_files:
-    - ./creds.yml
+    - ./docker.vars
   tasks:
  
     - name: "Installing Packages"
